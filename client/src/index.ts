@@ -1,3 +1,16 @@
+let getTopHeader = () => {
+  const headers = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
+  let headerPositions = Array.from(headers).map((header) => ({
+    element: header,
+    position: header.getBoundingClientRect().top,
+  }));
+
+  // Sort headers by their position
+  headerPositions.sort((a, b) => Math.abs(a.position) - Math.abs(b.position));
+
+  return headerPositions[0];
+};
+
 function onScrollEnd(f: (e: Event) => void, timeout = 200) {
   let timeoutId: number | null = null;
   function listener(e: Event) {
@@ -17,20 +30,6 @@ function onScrollEnd(f: (e: Event) => void, timeout = 200) {
   };
 }
 
-let getTopHeader = () => {
-  const headers = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
-  let headerPositions = Array.from(headers).map((header) => ({
-    element: header,
-    position: header.getBoundingClientRect().top,
-  }));
-
-  // Sort headers by their position
-  headerPositions.sort((a, b) => a.position - b.position);
-  for (let header of headerPositions) {
-    if (header.position > 0) return header.element.id;
-  }
-  return null;
-};
 function scrollToHeader(headerId: string, offset = 0) {
   // Find the header element by ID
   const headerElement = document.getElementById(headerId);
@@ -38,7 +37,7 @@ function scrollToHeader(headerId: string, offset = 0) {
   if (headerElement) {
     // Get the header's position relative to the top of the page
     const headerPosition =
-      headerElement.getBoundingClientRect().top + window.pageYOffset;
+      headerElement.getBoundingClientRect().top + window.scrollY;
 
     // Calculate the final scroll position, accounting for the offset
     const scrollPosition = headerPosition - offset;
@@ -59,8 +58,29 @@ function scrollToHeader(headerId: string, offset = 0) {
   }
 }
 
-export const register = () =>
+export const register = () => {
+  const socket = new WebSocket("ws://localhost:8080/?room=abc123");
+
+  let lastScroll: string | null = null;
+
+  socket.addEventListener("message", (event) => {
+    if (lastScroll != event.data) scrollToHeader(event.data);
+  });
+
   onScrollEnd(() => {
     const topHeader = getTopHeader();
-    console.log(topHeader);
+    lastScroll = topHeader.element.id;
+    socket.send(topHeader.element.id);
   });
+
+  socket.addEventListener("open", (event) => {
+    console.log("WebSocket connection opened");
+  });
+  socket.addEventListener("close", (event) => {
+    console.log("WebSocket connection closed");
+  });
+
+  socket.addEventListener("error", (event) => {
+    console.error("WebSocket error:", event);
+  });
+};
